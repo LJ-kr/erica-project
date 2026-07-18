@@ -100,7 +100,24 @@ function onPositionUpdate(position) {
     accuracyCircle.setRadius(accuracy);
   }
 
-  statusBar.textContent = `위치 정확도: 약 ${Math.round(accuracy)}m`;
+  updateStatusForAccuracy(accuracy);
+}
+
+// 정확도 수치에 따라 상태바 문구/스타일을 다르게 표시
+// (GPS 칩이 없는 노트북이나 실내에서는 Wi-Fi 기반 위치라 오차가 커질 수 있음)
+function updateStatusForAccuracy(accuracy) {
+  const rounded = Math.round(accuracy);
+
+  if (accuracy > 500) {
+    statusBar.textContent = `⚠️ 위치 정확도 매우 낮음 (약 ${rounded}m) — 노트북이거나 실내일 경우 실제 위치와 크게 다를 수 있어요`;
+    statusBar.classList.add('status-warning');
+  } else if (accuracy > 100) {
+    statusBar.textContent = `⚠️ 위치 정확도 낮음 (약 ${rounded}m) — 지도에서 실제 위치와 차이가 있을 수 있어요`;
+    statusBar.classList.add('status-warning');
+  } else {
+    statusBar.textContent = `위치 정확도: 약 ${rounded}m`;
+    statusBar.classList.remove('status-warning');
+  }
 }
 
 function onPositionError(error) {
