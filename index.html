@@ -12,19 +12,26 @@
     <input id="search-input" type="text" placeholder="장소를 검색하세요" />
     <button id="search-btn" aria-label="검색">🔍</button>
   </div>
-
   <!-- 검색 결과 드롭다운 -->
   <ul id="search-results"></ul>
-
   <!-- 지도 영역 -->
   <div id="map"></div>
-
   <!-- 내 위치로 이동 버튼 -->
   <button id="locate-btn" aria-label="내 위치로 이동">📍</button>
 
+  <!-- 장애물 제보 UI (신규) -->
+  <div id="report-panel">
+    <select id="report-category-select" aria-label="장애물 종류 선택">
+      <option value="curb">턱</option>
+      <option value="stairs">계단</option>
+      <option value="other">기타</option>
+    </select>
+    <button id="report-btn" aria-label="장애물 제보">📷 제보</button>
+    <input type="file" id="report-photo-input" accept="image/*" capture="environment" style="display:none" />
+  </div>
+
   <!-- 하단 상태바 -->
   <div id="status-bar">위치 정보를 가져오는 중...</div>
-
   <!--
     ⚠️ 아래 APP KEY는 반드시 본인의 카카오 앱 키(JavaScript 키)로 교체하세요.
     발급: https://developers.kakao.com → 내 애플리케이션 → 앱 키 → JavaScript 키
