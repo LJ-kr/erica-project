@@ -1,11 +1,12 @@
 /*
   =========================================================
-  교통약자 이동지도 - 2단계: 장애물 사진 업로드 + 마커 표시
+  교통약자 이동지도
   =========================================================
   이번에 추가/수정된 부분:
-  - 사진 선택 시 바로 업로드하지 않고, 미리보기+설명 입력 모달을 먼저 띄움
-  - 업로드 전 캔버스로 리사이즈/압축해서 용량을 줄임 (최대 1280px, JPEG 80%)
-  - 마커를 다시 클릭하면 열려있던 사진 팝업이 닫히도록 토글 처리
+  - 길찾기 중에는 위치 정확도 표시 대신 "남은 거리 · 예상 시간"만
+    상태바에 계속 표시 (종료 버튼 누르기 전까지 유지)
+  - 거리는 1km 이상이면 km 단위(소수점 1자리)로 표기
+  - "경로 안내 종료" 버튼 추가 — 제보 패널과 같은 자리를 재사용
   =========================================================
 */
 
@@ -24,21 +25,29 @@ const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
 const searchResultsEl = document.getElementById('search-results');
 const locateBtn = document.getElementById('locate-btn');
+const refreshBtn = document.getElementById('refresh-btn');
 
 const reportBtn = document.getElementById('report-btn');
 const reportPhotoInput = document.getElementById('report-photo-input');
 const reportCategorySelect = document.getElementById('report-category-select');
+const reportPanel = document.getElementById('report-panel');
 
-// 제보 모달 관련 (신규)
+// 제보 모달 관련
 const reportModal = document.getElementById('report-modal');
 const reportPreviewImg = document.getElementById('report-preview');
 const reportDescInput = document.getElementById('report-desc-input');
 const reportCancelBtn = document.getElementById('report-cancel-btn');
 const reportSubmitBtn = document.getElementById('report-submit-btn');
 
+// 경로 안내 관련 (신규)
+const routeEndBtn = document.getElementById('route-end-btn');
+
 let pendingReportBlob = null;
 let pendingReportPos = null;
 let pendingReportCategory = 'other';
+
+// 길찾기 중이면 true — 위치 정확도 문구가 상태바를 덮어쓰지 않도록 막는 플래그
+let isRouteActive = false;
 
 kakao.maps.load(initMap);
 
@@ -57,12 +66,17 @@ function initMap() {
   setupSearch();
   setupLocateButton();
   setupReportUpload();
+  setupRouteEndButton();
+  setupRefreshButton();
   startWatchingPosition();
   loadObstacleReports();
+
+  // 15초마다 장애물 제보 자동 새로고침
+  setInterval(refreshObstacleReports, 15000);
 }
 
 // ---------------------------------------------------------
-// 실시간 위치 (기존과 동일)
+// 실시간 위치
 // ---------------------------------------------------------
 function startWatchingPosition() {
   if (!('geolocation' in navigator)) {
@@ -114,7 +128,10 @@ function onPositionUpdate(position) {
     accuracyCircle.setRadius(accuracy);
   }
 
-  updateStatusForAccuracy(accuracy);
+  // 길찾기 중에는 정확도 문구로 상태바를 덮어쓰지 않음
+  if (!isRouteActive) {
+    updateStatusForAccuracy(accuracy);
+  }
 }
 
 function updateStatusForAccuracy(accuracy) {
@@ -153,7 +170,7 @@ function setupLocateButton() {
 }
 
 // ---------------------------------------------------------
-// 검색 (기존과 동일)
+// 검색
 // ---------------------------------------------------------
 function setupSearch() {
   function doSearch() {
@@ -238,6 +255,14 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// 미터 단위 거리를 사람이 읽기 좋은 문자열로: 1km 이상이면 km(소수점 1자리)
+function formatDistance(meters) {
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)}km`;
+  }
+  return `${Math.round(meters)}m`;
+}
+
 // ---------------------------------------------------------
 // 장애물 사진 업로드
 // ---------------------------------------------------------
@@ -261,7 +286,6 @@ function setupReportUpload() {
     statusBar.textContent = '사진을 처리하는 중...';
 
     try {
-      // 업로드 전 리사이즈/압축 — 최대 가로/세로 1280px, JPEG 품질 80%
       const resizedBlob = await resizeImage(file, 1280, 0.8);
 
       pendingReportBlob = resizedBlob;
@@ -275,7 +299,7 @@ function setupReportUpload() {
       statusBar.textContent = '사진 처리 중 오류가 발생했습니다.';
     }
 
-    reportPhotoInput.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
+    reportPhotoInput.value = '';
   });
 
   reportCancelBtn.addEventListener('click', closeReportModal);
@@ -311,7 +335,6 @@ function closeReportModal() {
   pendingReportPos = null;
 }
 
-// 이미지 리사이즈/압축: 캔버스에 다시 그려서 JPEG로 압축 → 업로드 용량 절감
 function resizeImage(file, maxDimension = 1280, quality = 0.8) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -381,7 +404,6 @@ async function submitReport(fileBlob, lat, lng, category, description) {
   }
 }
 
-// 서버에 저장된 모든 제보를 불러와 마커로 표시
 async function loadObstacleReports() {
   try {
     const res = await fetch(`${API_BASE}/api/reports`);
@@ -393,6 +415,36 @@ async function loadObstacleReports() {
     console.error(err);
     statusBar.textContent = '장애물 제보 목록을 불러오지 못했습니다.';
   }
+}
+
+// 기존 마커를 전부 지우고 서버에서 다시 불러옴 (수동/자동 새로고침 공용)
+function clearObstacleMarkers() {
+  obstacleMarkers.forEach((marker) => marker.setMap(null));
+  obstacleMarkers = [];
+  Object.keys(obstacleRecordsById).forEach((id) => delete obstacleRecordsById[id]);
+  currentOpenReportId = null;
+}
+
+async function refreshObstacleReports() {
+  clearObstacleMarkers();
+  await loadObstacleReports();
+}
+
+function setupRefreshButton() {
+  if (!refreshBtn) return;
+
+  refreshBtn.addEventListener('click', async () => {
+    refreshBtn.classList.add('spinning');
+
+    // 길찾기 중일 땐 상태바를 거리/시간 표시로 유지해야 하므로 문구를 건드리지 않음
+    if (!isRouteActive) statusBar.textContent = '장애물 제보를 새로고침하는 중...';
+
+    await refreshObstacleReports();
+
+    if (!isRouteActive) statusBar.textContent = '장애물 제보를 새로고침했습니다.';
+
+    setTimeout(() => refreshBtn.classList.remove('spinning'), 600);
+  });
 }
 
 const CATEGORY_LABELS = {
@@ -407,9 +459,7 @@ const CATEGORY_COLORS = {
   other: '#6C757D',
 };
 
-// { [id]: { marker, infowindow } }
 const obstacleRecordsById = {};
-// 현재 팝업이 열려있는 제보 id (한 번에 하나만 열리도록, 토글용)
 let currentOpenReportId = null;
 
 function addObstacleMarker(record) {
@@ -450,7 +500,6 @@ function addObstacleMarker(record) {
     `,
   });
 
-  // 마커 클릭 시 열림/닫힘 토글
   kakao.maps.event.addListener(marker, 'click', () => {
     toggleObstaclePopup(record.id);
   });
@@ -459,7 +508,6 @@ function addObstacleMarker(record) {
   obstacleRecordsById[record.id] = { marker, infowindow };
 }
 
-// 같은 마커를 다시 누르면 닫히고, 다른 마커를 누르면 이전 팝업은 닫고 새로 염
 function toggleObstaclePopup(id) {
   const entry = obstacleRecordsById[id];
   if (!entry) return;
@@ -509,6 +557,7 @@ window.deleteObstacleReport = async function (id) {
   =========================================================
 */
 let routePolyline;
+let currentRouteResult = null;
 
 async function requestRoute(destinationPlace) {
   if (!userMarker) {
@@ -549,19 +598,55 @@ function drawRoute(result) {
   linePath.forEach((p) => bounds.extend(p));
   map.setBounds(bounds);
 
-  const minutes = Math.round(result.durationSeconds / 60);
-  const meters = Math.round(result.distanceMeters);
+  currentRouteResult = result;
+  startRouteMode();
+  renderRouteStatus(result);
+}
+
+// 길찾기 중 상태바에 "거리 · 예상 시간(· 장애물 경고)"만 표시
+function renderRouteStatus(result) {
+  const distanceText = formatDistance(result.distanceMeters);
+  const minutes = Math.max(1, Math.round(result.durationSeconds / 60));
 
   if (result.warnings && result.warnings.length > 0) {
     const labels = result.warnings
       .map((w) => CATEGORY_LABELS[w.category] || '장애물')
       .join(', ');
-    statusBar.textContent = `약 ${meters}m · ${minutes}분 — 경로 주변에 ${labels} 있음 ⚠️`;
+    statusBar.textContent = `${distanceText} · 약 ${minutes}분 — 경로 주변에 ${labels} 있음 ⚠️`;
     statusBar.classList.add('status-warning');
   } else {
-    statusBar.textContent = `약 ${meters}m · ${minutes}분 — 경로에 등록된 장애물 없음`;
+    statusBar.textContent = `${distanceText} · 약 ${minutes}분`;
     statusBar.classList.remove('status-warning');
   }
+}
+
+// 길찾기 모드 진입: 제보 패널 숨기고 종료 버튼 노출, 위치 정확도 표시 차단
+function startRouteMode() {
+  isRouteActive = true;
+  if (reportPanel) reportPanel.style.display = 'none';
+  if (routeEndBtn) routeEndBtn.classList.add('visible');
+}
+
+// 길찾기 모드 종료: 원래 UI로 복귀
+function endRouteMode() {
+  isRouteActive = false;
+  currentRouteResult = null;
+
+  if (routePolyline) {
+    routePolyline.setMap(null);
+    routePolyline = null;
+  }
+
+  if (reportPanel) reportPanel.style.display = '';
+  if (routeEndBtn) routeEndBtn.classList.remove('visible');
+
+  statusBar.classList.remove('status-warning');
+  statusBar.textContent = '경로 안내를 종료했습니다.';
+}
+
+function setupRouteEndButton() {
+  if (!routeEndBtn) return;
+  routeEndBtn.addEventListener('click', endRouteMode);
 }
 
 async function getAccessibleRoute(origin, destination) {
