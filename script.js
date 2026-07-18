@@ -177,12 +177,12 @@ function renderResults(list) {
   list.slice(0, 5).forEach((place) => {
     const li = document.createElement('li');
     li.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
+      <div class="result-row">
+        <div class="result-text">
           <strong>${place.place_name}</strong>
           <span>${place.road_address_name || place.address_name}</span>
         </div>
-        <button class="route-to-btn" style="flex-shrink:0;padding:6px 10px;border:none;border-radius:6px;background:#4285F4;color:#fff;font-size:12px;">길찾기</button>
+        <button class="route-to-btn">길찾기</button>
       </div>
     `;
 
@@ -322,12 +322,12 @@ function addObstacleMarker(record) {
 
   const infowindow = new kakao.maps.InfoWindow({
     content: `
-      <div style="padding:8px;max-width:200px;">
-        <strong>${CATEGORY_LABELS[record.category] || '기타'}</strong><br/>
-        <img src="${record.photoUrl}" style="width:100%;margin-top:4px;border-radius:4px;" /><br/>
+      <div class="obstacle-popup">
+        <span class="popup-label">${CATEGORY_LABELS[record.category] || '기타'}</span><br/>
+        <img src="${record.photoUrl}" />
         <button
+          class="popup-delete-btn"
           onclick="window.deleteObstacleReport('${record.id}')"
-          style="margin-top:6px;width:100%;padding:6px;border:none;border-radius:6px;background:#e63946;color:#fff;font-size:12px;cursor:pointer;"
         >삭제</button>
       </div>
     `,
