@@ -1,15 +1,13 @@
 /*
   =========================================================
-  교통약자 이동지도 - 1단계: 카카오맵 로드 + 실시간 위치 표시
+  교통약자 이동지도 - 2단계: 장애물 사진 업로드 + 마커 표시 추가
   =========================================================
   다음 단계에서 추가될 예정인 기능 (아직 미구현):
-  - 장애물 사진 업로드 + 마커 표시 (백엔드 연동 필요)
   - 턱/계단 회피 경로 안내 (커스텀 라우팅 엔진 필요) → getAccessibleRoute()에서 준비 중
   - 데이터 대시보드
   =========================================================
 */
 
-// 백엔드(Vercel) API 주소 — 저장소 B 배포 도메인
 const API_BASE = "https://erica-project-back.vercel.app";
 
 let map;
@@ -18,6 +16,7 @@ let accuracyCircle;
 let watchId;
 let places;
 let searchMarker;
+let obstacleMarkers = []; // 장애물 마커 목록 (다시 그릴 때 정리용)
 
 const statusBar = document.getElementById('status-bar');
 const searchInput = document.getElementById('search-input');
@@ -25,16 +24,20 @@ const searchBtn = document.getElementById('search-btn');
 const searchResultsEl = document.getElementById('search-results');
 const locateBtn = document.getElementById('locate-btn');
 
-// autoload=false 로 SDK를 불러왔기 때문에 kakao.maps.load로 직접 초기화 시점을 제어
+// 아래 4개는 새로 추가되는 UI 요소 — HTML에 대응하는 엘리먼트 필요 (안내 참고)
+const reportBtn = document.getElementById('report-btn');
+const reportPhotoInput = document.getElementById('report-photo-input');
+const reportCategorySelect = document.getElementById('report-category-select');
+const reportModal = document.getElementById('report-modal');
+
 kakao.maps.load(initMap);
 
 function initMap() {
-  // 기본 중심 좌표: 위치 못 받아올 경우를 대비한 서울시청
   const defaultCenter = new kakao.maps.LatLng(37.5665, 126.978);
 
   map = new kakao.maps.Map(document.getElementById('map'), {
     center: defaultCenter,
-    level: 4, // 카카오맵은 숫자가 작을수록 확대(줌인)
+    level: 4,
   });
 
   map.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
@@ -43,10 +46,14 @@ function initMap() {
 
   setupSearch();
   setupLocateButton();
+  setupReportUpload();
   startWatchingPosition();
+  loadObstacleReports();
 }
 
-// 실시간 위치 추적 시작
+// ---------------------------------------------------------
+// 실시간 위치 (기존과 동일)
+// ---------------------------------------------------------
 function startWatchingPosition() {
   if (!('geolocation' in navigator)) {
     statusBar.textContent = '이 브라우저는 위치 정보를 지원하지 않습니다.';
@@ -58,11 +65,7 @@ function startWatchingPosition() {
   watchId = navigator.geolocation.watchPosition(
     onPositionUpdate,
     onPositionError,
-    {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 10000,
-    }
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
   );
 }
 
@@ -71,11 +74,9 @@ function onPositionUpdate(position) {
   const pos = new kakao.maps.LatLng(latitude, longitude);
 
   if (!userMarker) {
-    // 최초 1회: 지도 중심을 내 위치로 이동
     map.setCenter(pos);
     map.setLevel(3);
 
-    // 내 위치를 나타내는 파란 점 (커스텀 오버레이로 CSS 원 표시)
     const dot = document.createElement('div');
     dot.className = 'user-dot';
 
@@ -106,8 +107,6 @@ function onPositionUpdate(position) {
   updateStatusForAccuracy(accuracy);
 }
 
-// 정확도 수치에 따라 상태바 문구/스타일을 다르게 표시
-// (GPS 칩이 없는 노트북이나 실내에서는 Wi-Fi 기반 위치라 오차가 커질 수 있음)
 function updateStatusForAccuracy(accuracy) {
   const rounded = Math.round(accuracy);
 
@@ -132,7 +131,6 @@ function onPositionError(error) {
   statusBar.textContent = messages[error.code] || '위치 정보를 가져오는 데 실패했습니다.';
 }
 
-// 내 위치로 이동 버튼
 function setupLocateButton() {
   locateBtn.addEventListener('click', () => {
     if (userMarker) {
@@ -144,7 +142,9 @@ function setupLocateButton() {
   });
 }
 
-// 장소 검색 (카카오 로컬 키워드 검색)
+// ---------------------------------------------------------
+// 검색 (기존과 동일)
+// ---------------------------------------------------------
 function setupSearch() {
   function doSearch() {
     const query = searchInput.value.trim();
@@ -192,23 +192,131 @@ function moveToPlace(place) {
   if (searchMarker) {
     searchMarker.setMap(null);
   }
-  searchMarker = new kakao.maps.Marker({
-    position: pos,
-    map,
-  });
+  searchMarker = new kakao.maps.Marker({ position: pos, map });
 
   statusBar.textContent = place.place_name;
   searchResultsEl.style.display = 'none';
   searchInput.value = place.place_name;
 }
 
+// ---------------------------------------------------------
+// 장애물 사진 업로드 (신규)
+// ---------------------------------------------------------
+function setupReportUpload() {
+  if (!reportBtn) return; // 아직 HTML에 버튼 없으면 조용히 스킵
+
+  reportBtn.addEventListener('click', () => {
+    reportPhotoInput.click();
+  });
+
+  reportPhotoInput.addEventListener('change', async () => {
+    const file = reportPhotoInput.files[0];
+    if (!file) return;
+
+    if (!userMarker) {
+      statusBar.textContent = '현재 위치를 확인할 수 없어 제보를 등록할 수 없습니다.';
+      reportPhotoInput.value = '';
+      return;
+    }
+
+    const pos = userMarker.getPosition();
+    const category = reportCategorySelect ? reportCategorySelect.value : 'other';
+
+    await submitReport(file, pos.getLat(), pos.getLng(), category);
+    reportPhotoInput.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
+  });
+}
+
+async function submitReport(file, lat, lng, category) {
+  statusBar.textContent = '제보를 업로드하는 중...';
+
+  const formData = new FormData();
+  formData.append('photo', file);
+  formData.append('lat', lat);
+  formData.append('lng', lng);
+  formData.append('category', category);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/report`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error(`업로드 실패: ${res.status}`);
+
+    const record = await res.json();
+    statusBar.textContent = '제보가 등록되었습니다.';
+    addObstacleMarker(record);
+  } catch (err) {
+    console.error(err);
+    statusBar.textContent = '제보 업로드 중 오류가 발생했습니다.';
+  }
+}
+
+// 서버에 저장된 모든 제보를 불러와 마커로 표시
+async function loadObstacleReports() {
+  try {
+    const res = await fetch(`${API_BASE}/api/reports`);
+    if (!res.ok) throw new Error(`목록 조회 실패: ${res.status}`);
+
+    const records = await res.json();
+    records.forEach(addObstacleMarker);
+  } catch (err) {
+    console.error(err);
+    // 목록 조회 실패는 지도 사용 자체를 막을 정도는 아니므로 상태바만 조용히 남김
+    statusBar.textContent = '장애물 제보 목록을 불러오지 못했습니다.';
+  }
+}
+
+const CATEGORY_LABELS = {
+  curb: '턱',
+  stairs: '계단',
+  other: '기타 장애물',
+};
+
+function addObstacleMarker(record) {
+  const pos = new kakao.maps.LatLng(record.lat, record.lng);
+
+  const marker = new kakao.maps.Marker({
+    position: pos,
+    map,
+    image: new kakao.maps.MarkerImage(
+      obstacleMarkerIconFor(record.category),
+      new kakao.maps.Size(32, 32)
+    ),
+  });
+
+  const infowindow = new kakao.maps.InfoWindow({
+    content: `
+      <div style="padding:8px;max-width:200px;">
+        <strong>${CATEGORY_LABELS[record.category] || '기타'}</strong><br/>
+        <img src="${record.photoUrl}" style="width:100%;margin-top:4px;border-radius:4px;" />
+      </div>
+    `,
+  });
+
+  kakao.maps.event.addListener(marker, 'click', () => {
+    infowindow.open(map, marker);
+  });
+
+  obstacleMarkers.push(marker);
+}
+
+// 카테고리별 마커 아이콘 — 실제 아이콘 이미지가 없다면 우선 카카오 기본 마커로 대체 가능
+// (프로젝트에 /icons/marker-curb.png 등의 파일을 추가하면 그대로 반영됨)
+function obstacleMarkerIconFor(category) {
+  const icons = {
+    curb: '/icons/marker-curb.png',
+    stairs: '/icons/marker-stairs.png',
+    other: '/icons/marker-other.png',
+  };
+  return icons[category] || icons.other;
+}
+
 /*
   =========================================================
-  백엔드 연동 준비: 턱/계단 회피 경로 API 호출 스텁
+  백엔드 연동 준비: 턱/계단 회피 경로 API 호출 스텁 (다음 단계용)
   =========================================================
-  아직 화면에서 호출하는 곳은 없음. 다음 단계에서
-  "경로 안내" 버튼/기능을 만들 때 이 함수를 연결하면 됨.
-  origin/destination은 { lat, lng } 형태로 전달.
 */
 async function getAccessibleRoute(origin, destination) {
   try {
@@ -218,9 +326,7 @@ async function getAccessibleRoute(origin, destination) {
       body: JSON.stringify({ origin, destination }),
     });
 
-    if (!res.ok) {
-      throw new Error(`API 오류: ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`API 오류: ${res.status}`);
 
     return await res.json();
   } catch (err) {
