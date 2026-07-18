@@ -4,10 +4,13 @@
   =========================================================
   다음 단계에서 추가될 예정인 기능 (아직 미구현):
   - 장애물 사진 업로드 + 마커 표시 (백엔드 연동 필요)
-  - 턱/계단 회피 경로 안내 (커스텀 라우팅 엔진 필요)
+  - 턱/계단 회피 경로 안내 (커스텀 라우팅 엔진 필요) → getAccessibleRoute()에서 준비 중
   - 데이터 대시보드
   =========================================================
 */
+
+// 백엔드(Vercel) API 주소 — 저장소 B 배포 도메인
+const API_BASE = "https://erica-project-back.vercel.app";
 
 let map;
 let userMarker;
@@ -197,4 +200,32 @@ function moveToPlace(place) {
   statusBar.textContent = place.place_name;
   searchResultsEl.style.display = 'none';
   searchInput.value = place.place_name;
+}
+
+/*
+  =========================================================
+  백엔드 연동 준비: 턱/계단 회피 경로 API 호출 스텁
+  =========================================================
+  아직 화면에서 호출하는 곳은 없음. 다음 단계에서
+  "경로 안내" 버튼/기능을 만들 때 이 함수를 연결하면 됨.
+  origin/destination은 { lat, lng } 형태로 전달.
+*/
+async function getAccessibleRoute(origin, destination) {
+  try {
+    const res = await fetch(`${API_BASE}/api/directions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin, destination }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`API 오류: ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    statusBar.textContent = '경로 정보를 가져오는 데 실패했습니다.';
+    console.error(err);
+    return null;
+  }
 }
