@@ -434,7 +434,9 @@ async function submitReport(fileBlob, lat, lng, category, description) {
 
 async function loadObstacleReports() {
   try {
-    const res = await fetch(`${API_BASE}/api/reports`);
+    const res = await fetch(`${API_BASE}/api/reports?t=${Date.now()}`, {
+      cache: 'no-store',
+    });
     if (!res.ok) throw new Error(`목록 조회 실패: ${res.status}`);
 
     const records = await res.json();
