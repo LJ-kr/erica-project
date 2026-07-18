@@ -23,6 +23,8 @@
   <div id="map"></div>
   <!-- 내 위치로 이동 버튼 -->
   <button id="locate-btn" aria-label="내 위치로 이동">📍</button>
+  <!-- 장애물 제보 새로고침 버튼 (신규) -->
+  <button id="refresh-btn" aria-label="장애물 제보 새로고침">🔄</button>
   <!-- 장애물 제보 UI -->
   <div id="report-panel">
     <select id="report-category-select" aria-label="장애물 종류 선택">
@@ -33,7 +35,9 @@
     <button id="report-btn" aria-label="장애물 제보">📷 제보</button>
     <input type="file" id="report-photo-input" accept="image/*" capture="environment" style="display:none" />
   </div>
-  <!-- 제보 모달: 사진 선택 후 미리보기 + 설명 입력 (신규) -->
+  <!-- 경로 안내 중에만 노출: 제보 패널과 같은 자리를 재사용 (신규) -->
+  <button id="route-end-btn" aria-label="경로 안내 종료">✕ 경로 안내 종료</button>
+  <!-- 제보 모달: 사진 선택 후 미리보기 + 설명 입력 -->
   <div id="report-modal">
     <div class="report-modal-inner">
       <img id="report-preview" src="" alt="제보 사진 미리보기" />
