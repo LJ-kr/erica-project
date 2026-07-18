@@ -39,8 +39,17 @@ const reportDescInput = document.getElementById('report-desc-input');
 const reportCancelBtn = document.getElementById('report-cancel-btn');
 const reportSubmitBtn = document.getElementById('report-submit-btn');
 
-// 경로 안내 관련 (신규)
+// 경로 안내 관련
 const routeEndBtn = document.getElementById('route-end-btn');
+
+// 주변 제보 목록 관련 (신규)
+const listBtn = document.getElementById('list-btn');
+const reportListPanel = document.getElementById('report-list-panel');
+const reportListGrid = document.getElementById('report-list-grid');
+const reportListTitle = document.getElementById('report-list-title');
+const reportListCloseBtn = document.getElementById('report-list-close-btn');
+
+const LIST_RADIUS_METERS = 1000;
 
 let pendingReportBlob = null;
 let pendingReportPos = null;
@@ -68,6 +77,7 @@ function initMap() {
   setupReportUpload();
   setupRouteEndButton();
   setupRefreshButton();
+  setupReportListPanel();
   startWatchingPosition();
   loadObstacleReports();
 
@@ -523,7 +533,7 @@ function addObstacleMarker(record) {
   });
 
   obstacleMarkers.push(marker);
-  obstacleRecordsById[record.id] = { marker, infowindow };
+  obstacleRecordsById[record.id] = { marker, infowindow, record };
 }
 
 function toggleObstaclePopup(id) {
@@ -713,4 +723,77 @@ async function getAccessibleRoute(origin, destination) {
     console.error(err);
     return null;
   }
+}
+
+/*
+  =========================================================
+  주변 제보 목록 (신규) — 포켓몬고 레이드 목록처럼
+  반경 1km 이내 제보를 작은 사진 카드로 격자 표시
+  =========================================================
+*/
+function setupReportListPanel() {
+  if (!listBtn) return;
+
+  listBtn.addEventListener('click', openReportListPanel);
+  reportListCloseBtn.addEventListener('click', closeReportListPanel);
+}
+
+function openReportListPanel() {
+  if (!userMarker) {
+    statusBar.textContent = '현재 위치를 확인할 수 없어 주변 제보를 불러올 수 없습니다.';
+    return;
+  }
+
+  const pos = userMarker.getPosition();
+  const myLat = pos.getLat();
+  const myLng = pos.getLng();
+
+  // 반경 1km 이내 제보만 추려서, 가까운 순으로 정렬
+  const nearby = Object.values(obstacleRecordsById)
+    .map((entry) => ({
+      ...entry,
+      distance: haversineMeters(myLat, myLng, entry.record.lat, entry.record.lng),
+    }))
+    .filter((entry) => entry.distance <= LIST_RADIUS_METERS)
+    .sort((a, b) => a.distance - b.distance);
+
+  reportListTitle.textContent = `내 주변 1km 제보 (${nearby.length})`;
+  renderReportListGrid(nearby);
+  reportListPanel.classList.add('active');
+}
+
+function closeReportListPanel() {
+  reportListPanel.classList.remove('active');
+}
+
+function renderReportListGrid(entries) {
+  reportListGrid.innerHTML = '';
+
+  if (entries.length === 0) {
+    reportListGrid.innerHTML = '<div class="report-list-empty">반경 1km 이내에 등록된 제보가 없어요.</div>';
+    return;
+  }
+
+  entries.forEach(({ record }) => {
+    const color = CATEGORY_COLORS[record.category] || CATEGORY_COLORS.other;
+    const label = CATEGORY_LABELS[record.category] || '기타';
+
+    const card = document.createElement('button');
+    card.className = 'report-card';
+    card.innerHTML = `
+      <span class="report-card-thumb" style="--card-color:${color}">
+        <img src="${record.photoUrl}" alt="${label}" />
+      </span>
+      <span class="report-card-label">${label}</span>
+    `;
+
+    card.addEventListener('click', () => {
+      closeReportListPanel();
+      map.panTo(new kakao.maps.LatLng(record.lat, record.lng));
+      map.setLevel(3);
+      toggleObstaclePopup(record.id);
+    });
+
+    reportListGrid.appendChild(card);
+  });
 }
