@@ -415,6 +415,86 @@ html, body {
 }
 
 /* ---------------------------------------------------------
+   제보 모달 (사진 미리보기 + 설명 입력)
+--------------------------------------------------------- */
+#report-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(16, 27, 52, 0.55);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+#report-modal.active {
+  display: flex;
+}
+
+.report-modal-inner {
+  width: 100%;
+  max-width: 480px;
+  background: var(--paper);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow);
+}
+
+#report-preview {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  display: block;
+  background: rgba(16, 27, 52, 0.04);
+}
+
+#report-desc-input {
+  width: 100%;
+  min-height: 90px;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.report-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.report-modal-actions button {
+  flex: 1;
+  padding: 14px;
+  min-height: 48px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#report-cancel-btn {
+  background: rgba(16, 27, 52, 0.06);
+  color: var(--ink);
+}
+
+#report-submit-btn {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+#report-submit-btn:disabled {
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------
    경로 안내 종료 버튼 — 제보 패널과 같은 자리 재사용, 평소엔 숨김
 --------------------------------------------------------- */
 #route-end-btn {
