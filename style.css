@@ -135,4 +135,9 @@ html, body {
   border-radius: 10px;
   font-size: 13px;
   text-align: center;
+  transition: background-color 0.2s ease;
+}
+
+#status-bar.status-warning {
+  background: rgba(230, 126, 0, 0.9);
 }
