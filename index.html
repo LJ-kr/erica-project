@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>교통약자 이동지도</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 상단 검색바 -->
+  <div id="search-bar">
+    <input id="search-input" type="text" placeholder="장소를 검색하세요" />
+    <button id="search-btn" aria-label="검색">🔍</button>
+  </div>
+
+  <!-- 검색 결과 드롭다운 -->
+  <ul id="search-results"></ul>
+
+  <!-- 지도 영역 -->
+  <div id="map"></div>
+
+  <!-- 내 위치로 이동 버튼 -->
+  <button id="locate-btn" aria-label="내 위치로 이동">📍</button>
+
+  <!-- 하단 상태바 -->
+  <div id="status-bar">위치 정보를 가져오는 중...</div>
+
+  <!--
+    ⚠️ 아래 APP KEY는 반드시 본인의 카카오 앱 키(JavaScript 키)로 교체하세요.
+    발급: https://developers.kakao.com → 내 애플리케이션 → 앱 키 → JavaScript 키
+    [플랫폼] 설정에서 사용할 도메인(예: https://아이디.github.io)을 반드시 등록해야
+    실제 배포 후에도 정상 동작합니다. (등록 안 하면 콘솔에 도메인 에러 발생)
+    [카카오맵] 사용 설정을 ON으로 해야 지도가 로드됩니다.
+  -->
+  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=26a7a2b9329b0191fadc30b42453aa87&libraries=services&autoload=false"></script>
+  <script src="script.js"></script>
+</body>
+</html>
