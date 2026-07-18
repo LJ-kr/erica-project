@@ -176,8 +176,24 @@ function renderResults(list) {
 
   list.slice(0, 5).forEach((place) => {
     const li = document.createElement('li');
-    li.innerHTML = `<strong>${place.place_name}</strong><span>${place.road_address_name || place.address_name}</span>`;
-    li.addEventListener('click', () => moveToPlace(place));
+    li.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
+          <strong>${place.place_name}</strong>
+          <span>${place.road_address_name || place.address_name}</span>
+        </div>
+        <button class="route-to-btn" style="flex-shrink:0;padding:6px 10px;border:none;border-radius:6px;background:#4285F4;color:#fff;font-size:12px;">길찾기</button>
+      </div>
+    `;
+
+    li.addEventListener('click', (e) => {
+      if (e.target.classList.contains('route-to-btn')) {
+        requestRoute(place);
+      } else {
+        moveToPlace(place);
+      }
+    });
+
     searchResultsEl.appendChild(li);
   });
 
@@ -352,9 +368,71 @@ window.deleteObstacleReport = async function (id) {
 
 /*
   =========================================================
-  백엔드 연동 준비: 턱/계단 회피 경로 API 호출 스텁 (다음 단계용)
+  경로 안내 (신규)
   =========================================================
+  - 현재 위치(userMarker) → 검색해서 고른 장소까지 도보 경로 요청
+  - 백엔드(/api/directions)가 OSRM으로 기본 경로를 계산하고,
+    그 경로 근처 장애물 제보를 같이 찾아서 반환함
+  - 아직 "장애물을 피해가는 경로"는 아니고, 경로 위 장애물을
+    경고로 보여주는 수준 (다음 단계에서 실제 회피 로직 추가 예정)
 */
+let routePolyline;
+
+async function requestRoute(destinationPlace) {
+  if (!userMarker) {
+    statusBar.textContent = '현재 위치를 확인할 수 없어 경로를 계산할 수 없습니다.';
+    return;
+  }
+
+  const originPos = userMarker.getPosition();
+  const origin = { lat: originPos.getLat(), lng: originPos.getLng() };
+  const destination = { lat: parseFloat(destinationPlace.y), lng: parseFloat(destinationPlace.x) };
+
+  statusBar.textContent = '경로를 계산하는 중...';
+  searchResultsEl.style.display = 'none';
+
+  const result = await getAccessibleRoute(origin, destination);
+  if (!result) return; // getAccessibleRoute 내부에서 이미 상태바 메시지 처리함
+
+  drawRoute(result);
+}
+
+function drawRoute(result) {
+  if (routePolyline) {
+    routePolyline.setMap(null);
+  }
+
+  const linePath = result.path.map((p) => new kakao.maps.LatLng(p.lat, p.lng));
+
+  routePolyline = new kakao.maps.Polyline({
+    path: linePath,
+    strokeWeight: 6,
+    strokeColor: '#4285F4',
+    strokeOpacity: 0.9,
+    strokeStyle: 'solid',
+    map,
+  });
+
+  // 경로 전체가 보이도록 지도 범위 조정
+  const bounds = new kakao.maps.LatLngBounds();
+  linePath.forEach((p) => bounds.extend(p));
+  map.setBounds(bounds);
+
+  const minutes = Math.round(result.durationSeconds / 60);
+  const meters = Math.round(result.distanceMeters);
+
+  if (result.warnings && result.warnings.length > 0) {
+    const labels = result.warnings
+      .map((w) => CATEGORY_LABELS[w.category] || '장애물')
+      .join(', ');
+    statusBar.textContent = `약 ${meters}m · ${minutes}분 — 경로 주변에 ${labels} 있음 ⚠️`;
+    statusBar.classList.add('status-warning');
+  } else {
+    statusBar.textContent = `약 ${meters}m · ${minutes}분 — 경로에 등록된 장애물 없음`;
+    statusBar.classList.remove('status-warning');
+  }
+}
+
 async function getAccessibleRoute(origin, destination) {
   try {
     const res = await fetch(`${API_BASE}/api/directions`, {
