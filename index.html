@@ -23,8 +23,10 @@
   <div id="map"></div>
   <!-- 내 위치로 이동 버튼 -->
   <button id="locate-btn" aria-label="내 위치로 이동">📍</button>
-  <!-- 장애물 제보 새로고침 버튼 (신규) -->
+  <!-- 장애물 제보 새로고침 버튼 -->
   <button id="refresh-btn" aria-label="장애물 제보 새로고침">🔄</button>
+  <!-- 주변 제보 목록 버튼 (신규) -->
+  <button id="list-btn" aria-label="주변 제보 목록">📋</button>
   <!-- 장애물 제보 UI -->
   <div id="report-panel">
     <select id="report-category-select" aria-label="장애물 종류 선택">
@@ -50,6 +52,15 @@
   </div>
   <!-- 하단 상태바 -->
   <div id="status-bar">위치 정보를 가져오는 중...</div>
+
+  <!-- 주변 제보 목록 패널 (신규) -->
+  <div id="report-list-panel">
+    <div class="report-list-header">
+      <span id="report-list-title">내 주변 1km 제보</span>
+      <button id="report-list-close-btn" aria-label="목록 닫기">✕</button>
+    </div>
+    <div id="report-list-grid"></div>
+  </div>
   <!--
     ⚠️ 아래 APP KEY는 반드시 본인의 카카오 앱 키(JavaScript 키)로 교체하세요.
     발급: https://developers.kakao.com → 내 애플리케이션 → 앱 키 → JavaScript 키
