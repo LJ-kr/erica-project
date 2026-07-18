@@ -274,23 +274,45 @@ const CATEGORY_LABELS = {
   other: '기타 장애물',
 };
 
+const CATEGORY_COLORS = {
+  curb: '#FF6B35',
+  stairs: '#E63946',
+  other: '#6C757D',
+};
+
+// { [id]: { marker, infowindow } } — 삭제 시 지도에서 즉시 제거하기 위해 보관
+const obstacleRecordsById = {};
+
 function addObstacleMarker(record) {
   const pos = new kakao.maps.LatLng(record.lat, record.lng);
+  const color = CATEGORY_COLORS[record.category] || CATEGORY_COLORS.other;
+
+  // 외부 이미지 파일 없이도 항상 뜨도록 SVG를 데이터 URI로 직접 생성
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+      <circle cx="16" cy="16" r="13" fill="${color}" stroke="#ffffff" stroke-width="3"/>
+    </svg>
+  `;
+  const markerImage = new kakao.maps.MarkerImage(
+    `data:image/svg+xml;base64,${btoa(svg)}`,
+    new kakao.maps.Size(32, 32)
+  );
 
   const marker = new kakao.maps.Marker({
     position: pos,
     map,
-    image: new kakao.maps.MarkerImage(
-      obstacleMarkerIconFor(record.category),
-      new kakao.maps.Size(32, 32)
-    ),
+    image: markerImage,
   });
 
   const infowindow = new kakao.maps.InfoWindow({
     content: `
       <div style="padding:8px;max-width:200px;">
         <strong>${CATEGORY_LABELS[record.category] || '기타'}</strong><br/>
-        <img src="${record.photoUrl}" style="width:100%;margin-top:4px;border-radius:4px;" />
+        <img src="${record.photoUrl}" style="width:100%;margin-top:4px;border-radius:4px;" /><br/>
+        <button
+          onclick="window.deleteObstacleReport('${record.id}')"
+          style="margin-top:6px;width:100%;padding:6px;border:none;border-radius:6px;background:#e63946;color:#fff;font-size:12px;cursor:pointer;"
+        >삭제</button>
       </div>
     `,
   });
@@ -300,18 +322,33 @@ function addObstacleMarker(record) {
   });
 
   obstacleMarkers.push(marker);
+  obstacleRecordsById[record.id] = { marker, infowindow };
 }
 
-// 카테고리별 마커 아이콘 — 실제 아이콘 이미지가 없다면 우선 카카오 기본 마커로 대체 가능
-// (프로젝트에 /icons/marker-curb.png 등의 파일을 추가하면 그대로 반영됨)
-function obstacleMarkerIconFor(category) {
-  const icons = {
-    curb: '/icons/marker-curb.png',
-    stairs: '/icons/marker-stairs.png',
-    other: '/icons/marker-other.png',
-  };
-  return icons[category] || icons.other;
-}
+// InfoWindow 안의 inline onclick에서 호출되므로 전역(window)에 노출
+window.deleteObstacleReport = async function (id) {
+  const entry = obstacleRecordsById[id];
+  if (!entry) return;
+
+  if (!confirm('이 제보를 삭제할까요?')) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/delete-report?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+
+    if (!res.ok) throw new Error(`삭제 실패: ${res.status}`);
+
+    entry.infowindow.close();
+    entry.marker.setMap(null);
+    delete obstacleRecordsById[id];
+
+    statusBar.textContent = '제보가 삭제되었습니다.';
+  } catch (err) {
+    console.error(err);
+    statusBar.textContent = '삭제 중 오류가 발생했습니다.';
+  }
+};
 
 /*
   =========================================================
