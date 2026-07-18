@@ -29,13 +29,27 @@
   padding: 0;
   font-family: "Pretendard", -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* 더블탭 확대/탭 지연 제거 */
 }
 
 html, body {
   width: 100%;
   height: 100%;
+  height: 100dvh; /* 모바일 브라우저 주소창 크기에 따라 100vh가 어긋나는 문제 보정 */
   overflow: hidden;
   color: var(--ink);
+  overscroll-behavior: none; /* 당겨서 새로고침/바운스 스크롤 방지 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 텍스트를 직접 입력하는 요소는 선택 가능해야 함 */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  font-size: 16px; /* 16px 미만이면 iOS Safari가 포커스 시 자동으로 확대해버림 */
 }
 
 #map {
@@ -44,6 +58,7 @@ html, body {
   left: 0;
   width: 100%;
   height: 100%;
+  height: 100dvh;
 }
 
 /* ---------------------------------------------------------
@@ -51,7 +66,7 @@ html, body {
 --------------------------------------------------------- */
 #search-bar {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top));
   left: 16px;
   right: 16px;
   z-index: 10;
@@ -111,7 +126,7 @@ html, body {
 --------------------------------------------------------- */
 #search-results {
   position: absolute;
-  top: 72px;
+  top: calc(72px + env(safe-area-inset-top));
   left: 16px;
   right: 16px;
   z-index: 10;
@@ -176,7 +191,8 @@ html, body {
 .route-to-btn {
   flex-shrink: 0;
   border: none;
-  padding: 8px 14px;
+  padding: 10px 16px;
+  min-height: 40px;
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-ink);
@@ -194,11 +210,11 @@ html, body {
 --------------------------------------------------------- */
 #locate-btn {
   position: absolute;
-  bottom: 96px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
   right: 16px;
   z-index: 10;
-  width: 50px;
-  height: 50px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--glass);
@@ -218,7 +234,7 @@ html, body {
 --------------------------------------------------------- */
 #report-panel {
   position: absolute;
-  bottom: 96px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
   left: 16px;
   z-index: 10;
   display: flex;
@@ -238,7 +254,8 @@ html, body {
   background: rgba(16, 27, 52, 0.06);
   border-radius: 999px;
   padding: 10px 14px;
-  font-size: 13px;
+  min-height: 44px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
   outline: none;
@@ -249,6 +266,7 @@ html, body {
   background: var(--accent);
   color: var(--accent-ink);
   padding: 11px 16px;
+  min-height: 44px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
@@ -261,11 +279,91 @@ html, body {
 }
 
 /* ---------------------------------------------------------
+   제보 모달 (사진 미리보기 + 설명 입력) — 신규
+--------------------------------------------------------- */
+#report-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(16, 27, 52, 0.55);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+#report-modal.active {
+  display: flex;
+}
+
+.report-modal-inner {
+  width: 100%;
+  max-width: 480px;
+  background: var(--paper);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow);
+}
+
+#report-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  display: block;
+  background: rgba(16, 27, 52, 0.04);
+}
+
+#report-desc-input {
+  width: 100%;
+  min-height: 72px;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.report-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.report-modal-actions button {
+  flex: 1;
+  padding: 14px;
+  min-height: 48px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#report-cancel-btn {
+  background: rgba(16, 27, 52, 0.06);
+  color: var(--ink);
+}
+
+#report-submit-btn {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+#report-submit-btn:disabled {
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------
    하단 상태바
 --------------------------------------------------------- */
 #status-bar {
   position: absolute;
-  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
   left: 16px;
   right: 16px;
   z-index: 10;
@@ -314,10 +412,18 @@ html, body {
   margin-top: 2px;
 }
 
+.obstacle-popup .popup-desc {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
 .obstacle-popup .popup-delete-btn {
   margin-top: 8px;
   width: 100%;
-  padding: 8px;
+  padding: 11px;
+  min-height: 40px;
   border: none;
   border-radius: var(--radius-sm);
   background: var(--danger);
