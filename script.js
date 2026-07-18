@@ -1,10 +1,11 @@
 /*
   =========================================================
-  교통약자 이동지도 - 2단계: 장애물 사진 업로드 + 마커 표시 추가
+  교통약자 이동지도 - 2단계: 장애물 사진 업로드 + 마커 표시
   =========================================================
-  다음 단계에서 추가될 예정인 기능 (아직 미구현):
-  - 턱/계단 회피 경로 안내 (커스텀 라우팅 엔진 필요) → getAccessibleRoute()에서 준비 중
-  - 데이터 대시보드
+  이번에 추가/수정된 부분:
+  - 사진 선택 시 바로 업로드하지 않고, 미리보기+설명 입력 모달을 먼저 띄움
+  - 업로드 전 캔버스로 리사이즈/압축해서 용량을 줄임 (최대 1280px, JPEG 80%)
+  - 마커를 다시 클릭하면 열려있던 사진 팝업이 닫히도록 토글 처리
   =========================================================
 */
 
@@ -16,7 +17,7 @@ let accuracyCircle;
 let watchId;
 let places;
 let searchMarker;
-let obstacleMarkers = []; // 장애물 마커 목록 (다시 그릴 때 정리용)
+let obstacleMarkers = [];
 
 const statusBar = document.getElementById('status-bar');
 const searchInput = document.getElementById('search-input');
@@ -24,11 +25,20 @@ const searchBtn = document.getElementById('search-btn');
 const searchResultsEl = document.getElementById('search-results');
 const locateBtn = document.getElementById('locate-btn');
 
-// 아래 4개는 새로 추가되는 UI 요소 — HTML에 대응하는 엘리먼트 필요 (안내 참고)
 const reportBtn = document.getElementById('report-btn');
 const reportPhotoInput = document.getElementById('report-photo-input');
 const reportCategorySelect = document.getElementById('report-category-select');
+
+// 제보 모달 관련 (신규)
 const reportModal = document.getElementById('report-modal');
+const reportPreviewImg = document.getElementById('report-preview');
+const reportDescInput = document.getElementById('report-desc-input');
+const reportCancelBtn = document.getElementById('report-cancel-btn');
+const reportSubmitBtn = document.getElementById('report-submit-btn');
+
+let pendingReportBlob = null;
+let pendingReportPos = null;
+let pendingReportCategory = 'other';
 
 kakao.maps.load(initMap);
 
@@ -179,8 +189,8 @@ function renderResults(list) {
     li.innerHTML = `
       <div class="result-row">
         <div class="result-text">
-          <strong>${place.place_name}</strong>
-          <span>${place.road_address_name || place.address_name}</span>
+          <strong>${escapeHtml(place.place_name)}</strong>
+          <span>${escapeHtml(place.road_address_name || place.address_name)}</span>
         </div>
         <button class="route-to-btn">길찾기</button>
       </div>
@@ -216,10 +226,23 @@ function moveToPlace(place) {
 }
 
 // ---------------------------------------------------------
-// 장애물 사진 업로드 (신규)
+// 공통 유틸
+// ---------------------------------------------------------
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ---------------------------------------------------------
+// 장애물 사진 업로드
 // ---------------------------------------------------------
 function setupReportUpload() {
-  if (!reportBtn) return; // 아직 HTML에 버튼 없으면 조용히 스킵
+  if (!reportBtn) return;
 
   reportBtn.addEventListener('click', () => {
     reportPhotoInput.click();
@@ -235,22 +258,111 @@ function setupReportUpload() {
       return;
     }
 
-    const pos = userMarker.getPosition();
-    const category = reportCategorySelect ? reportCategorySelect.value : 'other';
+    statusBar.textContent = '사진을 처리하는 중...';
 
-    await submitReport(file, pos.getLat(), pos.getLng(), category);
+    try {
+      // 업로드 전 리사이즈/압축 — 최대 가로/세로 1280px, JPEG 품질 80%
+      const resizedBlob = await resizeImage(file, 1280, 0.8);
+
+      pendingReportBlob = resizedBlob;
+      pendingReportPos = userMarker.getPosition();
+      pendingReportCategory = reportCategorySelect ? reportCategorySelect.value : 'other';
+
+      openReportModal(resizedBlob);
+      statusBar.textContent = '설명을 입력하고 등록해주세요.';
+    } catch (err) {
+      console.error(err);
+      statusBar.textContent = '사진 처리 중 오류가 발생했습니다.';
+    }
+
     reportPhotoInput.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
+  });
+
+  reportCancelBtn.addEventListener('click', closeReportModal);
+
+  reportSubmitBtn.addEventListener('click', async () => {
+    if (!pendingReportBlob || !pendingReportPos) return;
+
+    const description = reportDescInput.value.trim();
+    reportSubmitBtn.disabled = true;
+
+    await submitReport(
+      pendingReportBlob,
+      pendingReportPos.getLat(),
+      pendingReportPos.getLng(),
+      pendingReportCategory,
+      description
+    );
+
+    reportSubmitBtn.disabled = false;
+    closeReportModal();
   });
 }
 
-async function submitReport(file, lat, lng, category) {
+function openReportModal(blob) {
+  reportPreviewImg.src = URL.createObjectURL(blob);
+  reportDescInput.value = '';
+  reportModal.classList.add('active');
+}
+
+function closeReportModal() {
+  reportModal.classList.remove('active');
+  pendingReportBlob = null;
+  pendingReportPos = null;
+}
+
+// 이미지 리사이즈/압축: 캔버스에 다시 그려서 JPEG로 압축 → 업로드 용량 절감
+function resizeImage(file, maxDimension = 1280, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      let { width, height } = img;
+
+      if (width > height && width > maxDimension) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      } else if (height >= width && height > maxDimension) {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(objectUrl);
+          if (blob) resolve(blob);
+          else reject(new Error('이미지 압축에 실패했습니다.'));
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('이미지를 불러올 수 없습니다.'));
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+async function submitReport(fileBlob, lat, lng, category, description) {
   statusBar.textContent = '제보를 업로드하는 중...';
 
   const formData = new FormData();
-  formData.append('photo', file);
+  formData.append('photo', fileBlob, 'report.jpg');
   formData.append('lat', lat);
   formData.append('lng', lng);
   formData.append('category', category);
+  formData.append('description', description || '');
 
   try {
     const res = await fetch(`${API_BASE}/api/report`, {
@@ -279,7 +391,6 @@ async function loadObstacleReports() {
     records.forEach(addObstacleMarker);
   } catch (err) {
     console.error(err);
-    // 목록 조회 실패는 지도 사용 자체를 막을 정도는 아니므로 상태바만 조용히 남김
     statusBar.textContent = '장애물 제보 목록을 불러오지 못했습니다.';
   }
 }
@@ -296,14 +407,15 @@ const CATEGORY_COLORS = {
   other: '#6C757D',
 };
 
-// { [id]: { marker, infowindow } } — 삭제 시 지도에서 즉시 제거하기 위해 보관
+// { [id]: { marker, infowindow } }
 const obstacleRecordsById = {};
+// 현재 팝업이 열려있는 제보 id (한 번에 하나만 열리도록, 토글용)
+let currentOpenReportId = null;
 
 function addObstacleMarker(record) {
   const pos = new kakao.maps.LatLng(record.lat, record.lng);
   const color = CATEGORY_COLORS[record.category] || CATEGORY_COLORS.other;
 
-  // 외부 이미지 파일 없이도 항상 뜨도록 SVG를 데이터 URI로 직접 생성
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
       <circle cx="16" cy="16" r="13" fill="${color}" stroke="#ffffff" stroke-width="3"/>
@@ -320,11 +432,16 @@ function addObstacleMarker(record) {
     image: markerImage,
   });
 
+  const descHtml = record.description
+    ? `<p class="popup-desc">${escapeHtml(record.description)}</p>`
+    : '';
+
   const infowindow = new kakao.maps.InfoWindow({
     content: `
       <div class="obstacle-popup">
         <span class="popup-label">${CATEGORY_LABELS[record.category] || '기타'}</span><br/>
         <img src="${record.photoUrl}" />
+        ${descHtml}
         <button
           class="popup-delete-btn"
           onclick="window.deleteObstacleReport('${record.id}')"
@@ -333,15 +450,34 @@ function addObstacleMarker(record) {
     `,
   });
 
+  // 마커 클릭 시 열림/닫힘 토글
   kakao.maps.event.addListener(marker, 'click', () => {
-    infowindow.open(map, marker);
+    toggleObstaclePopup(record.id);
   });
 
   obstacleMarkers.push(marker);
   obstacleRecordsById[record.id] = { marker, infowindow };
 }
 
-// InfoWindow 안의 inline onclick에서 호출되므로 전역(window)에 노출
+// 같은 마커를 다시 누르면 닫히고, 다른 마커를 누르면 이전 팝업은 닫고 새로 염
+function toggleObstaclePopup(id) {
+  const entry = obstacleRecordsById[id];
+  if (!entry) return;
+
+  if (currentOpenReportId === id) {
+    entry.infowindow.close();
+    currentOpenReportId = null;
+    return;
+  }
+
+  if (currentOpenReportId && obstacleRecordsById[currentOpenReportId]) {
+    obstacleRecordsById[currentOpenReportId].infowindow.close();
+  }
+
+  entry.infowindow.open(map, entry.marker);
+  currentOpenReportId = id;
+}
+
 window.deleteObstacleReport = async function (id) {
   const entry = obstacleRecordsById[id];
   if (!entry) return;
@@ -358,6 +494,7 @@ window.deleteObstacleReport = async function (id) {
     entry.infowindow.close();
     entry.marker.setMap(null);
     delete obstacleRecordsById[id];
+    if (currentOpenReportId === id) currentOpenReportId = null;
 
     statusBar.textContent = '제보가 삭제되었습니다.';
   } catch (err) {
@@ -368,13 +505,8 @@ window.deleteObstacleReport = async function (id) {
 
 /*
   =========================================================
-  경로 안내 (신규)
+  경로 안내
   =========================================================
-  - 현재 위치(userMarker) → 검색해서 고른 장소까지 도보 경로 요청
-  - 백엔드(/api/directions)가 OSRM으로 기본 경로를 계산하고,
-    그 경로 근처 장애물 제보를 같이 찾아서 반환함
-  - 아직 "장애물을 피해가는 경로"는 아니고, 경로 위 장애물을
-    경고로 보여주는 수준 (다음 단계에서 실제 회피 로직 추가 예정)
 */
 let routePolyline;
 
@@ -392,7 +524,7 @@ async function requestRoute(destinationPlace) {
   searchResultsEl.style.display = 'none';
 
   const result = await getAccessibleRoute(origin, destination);
-  if (!result) return; // getAccessibleRoute 내부에서 이미 상태바 메시지 처리함
+  if (!result) return;
 
   drawRoute(result);
 }
@@ -413,7 +545,6 @@ function drawRoute(result) {
     map,
   });
 
-  // 경로 전체가 보이도록 지도 범위 조정
   const bounds = new kakao.maps.LatLngBounds();
   linePath.forEach((p) => bounds.extend(p));
   map.setBounds(bounds);
