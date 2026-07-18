@@ -128,8 +128,10 @@ function onPositionUpdate(position) {
     accuracyCircle.setRadius(accuracy);
   }
 
-  // 길찾기 중에는 정확도 문구로 상태바를 덮어쓰지 않음
-  if (!isRouteActive) {
+  // 길찾기 중에는 정확도 대신 "남은 거리·시간"을 다시 계산해서 표시
+  if (isRouteActive) {
+    updateRouteProgress(latitude, longitude);
+  } else {
     updateStatusForAccuracy(accuracy);
   }
 }
@@ -179,7 +181,7 @@ function setupSearch() {
 
     places.keywordSearch(query, (data, status) => {
       if (status !== kakao.maps.services.Status.OK) {
-        statusBar.textContent = '검색 결과를 찾을 수 없습니다.';
+        if (!isRouteActive) statusBar.textContent = '검색 결과를 찾을 수 없습니다.';
         renderResults([]);
         return;
       }
@@ -237,7 +239,7 @@ function moveToPlace(place) {
   }
   searchMarker = new kakao.maps.Marker({ position: pos, map });
 
-  statusBar.textContent = place.place_name;
+  statusBar.textContent = isRouteActive ? statusBar.textContent : place.place_name;
   searchResultsEl.style.display = 'none';
   searchInput.value = place.place_name;
 }
@@ -261,6 +263,22 @@ function formatDistance(meters) {
     return `${(meters / 1000).toFixed(1)}km`;
   }
   return `${Math.round(meters)}m`;
+}
+
+// 위경도 두 점 사이 거리(미터)
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 // ---------------------------------------------------------
@@ -600,22 +618,52 @@ function drawRoute(result) {
 
   currentRouteResult = result;
   startRouteMode();
-  renderRouteStatus(result);
+
+  const originPos = userMarker.getPosition();
+  updateRouteProgress(originPos.getLat(), originPos.getLng());
 }
 
-// 길찾기 중 상태바에 "거리 · 예상 시간(· 장애물 경고)"만 표시
-function renderRouteStatus(result) {
-  const distanceText = formatDistance(result.distanceMeters);
-  const minutes = Math.max(1, Math.round(result.durationSeconds / 60));
+// 길찾기 중 위치가 갱신될 때마다 "목적지까지 남은 거리·예상 시간"을 다시 계산해서 표시
+function updateRouteProgress(lat, lng) {
+  if (!currentRouteResult) return;
 
-  if (result.warnings && result.warnings.length > 0) {
-    const labels = result.warnings
+  const path = currentRouteResult.path;
+
+  let remainingMeters = currentRouteResult.distanceMeters;
+
+  if (path && path.length > 1) {
+    // 경로 위에서 현재 위치와 가장 가까운 지점을 찾고, 거기서부터 도착지까지 남은 구간 길이를 합산
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+
+    for (let i = 0; i < path.length; i++) {
+      const d = haversineMeters(lat, lng, path[i].lat, path[i].lng);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIdx = i;
+      }
+    }
+
+    remainingMeters = nearestDist;
+    for (let i = nearestIdx; i < path.length - 1; i++) {
+      remainingMeters += haversineMeters(path[i].lat, path[i].lng, path[i + 1].lat, path[i + 1].lng);
+    }
+  }
+
+  // 최초 경로의 평균 속도(초/미터)를 기준으로 남은 시간 추정
+  const paceSecPerMeter = currentRouteResult.durationSeconds / Math.max(currentRouteResult.distanceMeters, 1);
+  const remainingSeconds = remainingMeters * paceSecPerMeter;
+  const minutes = Math.max(1, Math.round(remainingSeconds / 60));
+  const distanceText = formatDistance(remainingMeters);
+
+  if (currentRouteResult.warnings && currentRouteResult.warnings.length > 0) {
+    const labels = currentRouteResult.warnings
       .map((w) => CATEGORY_LABELS[w.category] || '장애물')
       .join(', ');
-    statusBar.textContent = `${distanceText} · 약 ${minutes}분 — 경로 주변에 ${labels} 있음 ⚠️`;
+    statusBar.textContent = `${distanceText} 남음 · 약 ${minutes}분 — 경로 주변에 ${labels} 있음 ⚠️`;
     statusBar.classList.add('status-warning');
   } else {
-    statusBar.textContent = `${distanceText} · 약 ${minutes}분`;
+    statusBar.textContent = `${distanceText} 남음 · 약 ${minutes}분`;
     statusBar.classList.remove('status-warning');
   }
 }
