@@ -1,51 +1,41 @@
-/* 장애물 제보 패널 (신규) */
-#report-panel {
-  position: absolute;
-  bottom: 90px;
-  left: 16px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #ffffff;
-  padding: 8px;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-}
-#report-category-select {
-  border: 1px solid #dddddd;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 14px;
-  outline: none;
-  background: #ffffff;
-}
-#report-btn {
-  border: none;
-  background: #4285F4;
-  color: #ffffff;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-#report-btn:active {
-  background: #3367d6;
+/* =========================================================
+   디자인 토큰
+   - 시그니처 컬러(--accent)는 한국 인도의 점자블록(노란색
+     촉지 유도블록)에서 따옴 — 교통약자 안내라는 주제와
+     직접 연결되는 선택
+   ========================================================= */
+:root {
+  --ink: #101b34;        /* 기본 텍스트/버튼 — 신뢰감 있는 네이비 */
+  --ink-soft: #4a5573;
+  --paper: #ffffff;
+  --glass: rgba(255, 255, 255, 0.82);
+  --accent: #ffc738;     /* 점자블록 옐로 — 핵심 액션에만 사용 */
+  --accent-ink: #101b34;
+  --danger: #e63946;
+  --caution: #ff6b35;
+  --neutral: #6c757d;
+  --line: rgba(16, 27, 52, 0.08);
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 8px 28px rgba(16, 27, 52, 0.14);
+  --shadow-sm: 0 4px 14px rgba(16, 27, 52, 0.12);
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  color: var(--ink);
 }
 
 #map {
@@ -56,7 +46,9 @@ html, body {
   height: 100%;
 }
 
-/* 상단 검색바 */
+/* ---------------------------------------------------------
+   상단 검색바
+--------------------------------------------------------- */
 #search-bar {
   position: absolute;
   top: 16px;
@@ -64,61 +56,81 @@ html, body {
   right: 16px;
   z-index: 10;
   display: flex;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  align-items: center;
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
   overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+#search-bar:focus-within {
+  box-shadow: 0 8px 28px rgba(16, 27, 52, 0.22);
 }
 
 #search-input {
   flex: 1;
   border: none;
-  padding: 14px 16px;
-  font-size: 16px;
+  background: transparent;
+  padding: 16px 4px 16px 18px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
   outline: none;
+}
+
+#search-input::placeholder {
+  color: var(--ink-soft);
+  font-weight: 400;
 }
 
 #search-btn {
   border: none;
-  background: #ffffff;
-  padding: 0 16px;
-  font-size: 18px;
+  background: transparent;
+  padding: 0 18px;
+  font-size: 17px;
   cursor: pointer;
+  color: var(--ink);
 }
 
-/* 내 위치 표시 점 (카카오맵 CustomOverlay용) */
+/* 내 위치 표시 점 */
 .user-dot {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #4285F4;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+  background: #4285f4;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.2);
 }
 
-/* 검색 결과 드롭다운 */
+/* ---------------------------------------------------------
+   검색 결과 드롭다운
+--------------------------------------------------------- */
 #search-results {
   position: absolute;
-  top: 68px;
+  top: 72px;
   left: 16px;
   right: 16px;
   z-index: 10;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
   list-style: none;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
   display: none;
 }
 
 #search-results li {
-  padding: 12px 16px;
-  border-bottom: 1px solid #eeeeee;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 #search-results li:last-child {
@@ -126,55 +138,191 @@ html, body {
 }
 
 #search-results li:active {
-  background: #f5f5f5;
+  background: rgba(16, 27, 52, 0.04);
 }
 
-#search-results li strong {
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.result-text strong {
   font-size: 14px;
-  color: #222222;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-#search-results li span {
+.result-text span {
   font-size: 12px;
-  color: #888888;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 내 위치 버튼 */
+.route-to-btn {
+  flex-shrink: 0;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.route-to-btn:active {
+  transform: scale(0.96);
+}
+
+/* ---------------------------------------------------------
+   내 위치 버튼
+--------------------------------------------------------- */
 #locate-btn {
   position: absolute;
-  bottom: 90px;
+  bottom: 96px;
   right: 16px;
   z-index: 10;
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
-  border: none;
-  background: #ffffff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-sm);
   font-size: 20px;
   cursor: pointer;
 }
 
 #locate-btn:active {
-  background: #f0f0f0;
+  transform: scale(0.94);
 }
 
-/* 하단 상태바 */
+/* ---------------------------------------------------------
+   장애물 제보 패널
+--------------------------------------------------------- */
+#report-panel {
+  position: absolute;
+  bottom: 96px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  padding: 8px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}
+
+#report-category-select {
+  border: none;
+  background: rgba(16, 27, 52, 0.06);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+}
+
+#report-btn {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 11px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#report-btn:active {
+  transform: scale(0.96);
+}
+
+/* ---------------------------------------------------------
+   하단 상태바
+--------------------------------------------------------- */
 #status-bar {
   position: absolute;
   bottom: 16px;
   left: 16px;
   right: 16px;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.75);
-  color: #fff;
-  padding: 10px 14px;
-  border-radius: 10px;
+  background: rgba(16, 27, 52, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #ffffff;
+  padding: 13px 16px;
+  border-radius: var(--radius-md);
   font-size: 13px;
+  font-weight: 500;
   text-align: center;
+  box-shadow: var(--shadow-sm);
   transition: background-color 0.2s ease;
 }
 
 #status-bar.status-warning {
-  background: rgba(230, 126, 0, 0.9);
+  background: rgba(255, 107, 53, 0.94);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------
+   장애물 마커 팝업 (InfoWindow 내부 콘텐츠)
+--------------------------------------------------------- */
+.obstacle-popup {
+  padding: 10px;
+  min-width: 160px;
+  font-family: "Pretendard", sans-serif;
+}
+
+.obstacle-popup .popup-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  background: rgba(16, 27, 52, 0.06);
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}
+
+.obstacle-popup img {
+  width: 100%;
+  display: block;
+  border-radius: var(--radius-sm);
+  margin-top: 2px;
+}
+
+.obstacle-popup .popup-delete-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
