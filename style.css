@@ -1,3 +1,9 @@
+/* =========================================================
+   디자인 토큰
+   - 시그니처 컬러(--accent)는 한국 인도의 점자블록(노란색
+     촉지 유도블록)에서 따옴 — 교통약자 안내라는 주제와
+     직접 연결되는 선택
+   ========================================================= */
 :root {
   --ink: #101b34;        /* 기본 텍스트/버튼 — 신뢰감 있는 네이비 */
   --ink-soft: #4a5573;
@@ -436,7 +442,7 @@ html, body {
 
 #report-preview {
   width: 100%;
-  max-height: 110px;
+  max-height: 120px;
   object-fit: cover;
   border-radius: var(--radius-md);
   margin-bottom: 12px;
@@ -486,6 +492,54 @@ html, body {
 
 #report-submit-btn:disabled {
   opacity: 0.6;
+}
+
+/* ---------------------------------------------------------
+   스마트폰 외 기기 사용 안내 모달
+--------------------------------------------------------- */
+#device-notice-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(16, 27, 52, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+#device-notice-modal.active {
+  display: flex;
+}
+
+.device-notice-inner {
+  width: 100%;
+  max-width: 320px;
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.device-notice-inner p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+
+#device-notice-confirm-btn {
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 13px;
+  min-height: 46px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* ---------------------------------------------------------
