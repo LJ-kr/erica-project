@@ -1,4 +1,14 @@
-
+/*
+  =========================================================
+  교통약자 이동지도
+  =========================================================
+  이번에 추가/수정된 부분:
+  - 길찾기 중에는 위치 정확도 표시 대신 "남은 거리 · 예상 시간"만
+    상태바에 계속 표시 (종료 버튼 누르기 전까지 유지)
+  - 거리는 1km 이상이면 km 단위(소수점 1자리)로 표기
+  - "경로 안내 종료" 버튼 추가 — 제보 패널과 같은 자리를 재사용
+  =========================================================
+*/
 
 const API_BASE = "https://erica-project-back.vercel.app";
 
@@ -49,6 +59,25 @@ let pendingReportCategory = 'other';
 let isRouteActive = false;
 
 kakao.maps.load(initMap);
+
+showDeviceNoticeIfNeeded();
+
+function showDeviceNoticeIfNeeded() {
+  const modal = document.getElementById('device-notice-modal');
+  const confirmBtn = document.getElementById('device-notice-confirm-btn');
+  if (!modal || !confirmBtn) return;
+
+  const DISMISS_KEY = 'device-notice-dismissed';
+
+  if (!localStorage.getItem(DISMISS_KEY)) {
+    modal.classList.add('active');
+  }
+
+  confirmBtn.addEventListener('click', () => {
+    modal.classList.remove('active');
+    localStorage.setItem(DISMISS_KEY, 'true');
+  });
+}
 
 function initMap() {
   const defaultCenter = new kakao.maps.LatLng(37.5665, 126.978);
